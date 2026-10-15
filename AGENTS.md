@@ -11,7 +11,7 @@ User-facing documentation: [README.md](README.md). Code, comments and docs are i
 |---|---|
 | Config, Icinga 2 API client, `check` / `list-tools` CLI | done |
 | Read tools: `icinga_status`, `list_problems`, `get_host`, `get_service`, `list_hosts`, `list_comments`, `list_downtimes` | done, verified live |
-| Write tools: `acknowledge_problem`, `remove_acknowledgement`, `add_comment`, `schedule_downtime`, `remove_downtime` | done; previews verified live, real writes not yet |
+| Write tools: `acknowledge_problem`, `remove_acknowledgement`, `add_comment`, `schedule_downtime`, `remove_downtime` | done; verified live (downtime, comment, ack skip) |
 | History via Icinga Web 2 `monitoring` module (`/monitoring/list/eventhistory?format=json`) | planned, needs web login |
 | Icinga Director read tools (`/director/...`, `Accept: application/json`) | planned, needs web login |
 | Streamable HTTP transport, central deployment | later |
