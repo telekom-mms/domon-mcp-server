@@ -164,3 +164,23 @@ class DowntimeList(BaseModel):
     returned: int
     truncated: bool
     downtimes: list[Downtime]
+
+
+class SkippedTarget(BaseModel):
+    target: str
+    reason: str
+
+
+class ActionOutcome(BaseModel):
+    code: int = Field(description="Icinga result code per object (200 = success)")
+    status: str
+    name: str | None = Field(None, description="Name of a created object, e.g. a downtime")
+
+
+class ActionResult(BaseModel):
+    action: str
+    applied: bool = Field(description="True if Icinga was changed")
+    message: str
+    targets: list[str] = Field(description="Objects the action was (or would be) applied to")
+    skipped: list[SkippedTarget]
+    results: list[ActionOutcome]

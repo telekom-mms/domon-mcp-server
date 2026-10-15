@@ -122,7 +122,7 @@ async def test_error_with_non_json_body(settings: IcingaSettings) -> None:
             await client.permissions()
 
 
-async def test_action_error_uses_result_status(settings: IcingaSettings) -> None:
+async def test_action_keeps_per_object_errors(settings: IcingaSettings) -> None:
     rec = Recorder(
         {
             ("POST", "/v1/actions/schedule-downtime"): json_response(
@@ -131,8 +131,31 @@ async def test_action_error_uses_result_status(settings: IcingaSettings) -> None
         }
     )
     async with IcingaClient(settings, transport=rec.transport) as client:
-        with pytest.raises(IcingaAPIError, match="Invalid end time"):
-            await client.action("schedule-downtime", {"type": "Host"})
+        results = await client.action(
+            "schedule-downtime", {"type": "Host", "filter": "host.name in names"}
+        )
+    assert results == [{"code": 500, "status": "Invalid end time"}]
+
+
+async def test_action_permission_error_raises(settings: IcingaSettings) -> None:
+    rec = Recorder(
+        {
+            ("POST", "/v1/actions/add-comment"): json_response(
+                403, {"results": [{"code": 403, "status": "No permission"}]}
+            )
+        }
+    )
+    async with IcingaClient(settings, transport=rec.transport) as client:
+        with pytest.raises(IcingaPermissionError):
+            await client.action("add-comment", {"type": "Host", "filter": "host.name in names"})
+
+
+async def test_action_without_filter_is_refused(settings: IcingaSettings) -> None:
+    rec = Recorder({})
+    async with IcingaClient(settings, transport=rec.transport) as client:
+        with pytest.raises(ValueError, match="without a filter"):
+            await client.action("add-comment", {"type": "Host", "author": "a", "comment": "c"})
+    assert rec.requests == []
 
 
 async def test_connect_error_mentions_tls_settings(settings: IcingaSettings) -> None:

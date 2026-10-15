@@ -20,7 +20,7 @@ from icinga_mcp.config import (
 from icinga_mcp.errors import ConfigError, IcingaMCPError
 from icinga_mcp.permissions import READ_PERMISSIONS, WRITE_PERMISSIONS, missing, unused
 from icinga_mcp.server import create_server
-from icinga_mcp.tools import TOOLSETS, build_all, select_tools
+from icinga_mcp.tools import TOOLSETS, build_all, check_write_config, select_tools
 
 EXIT_OK = 0
 EXIT_CONFIG = 1
@@ -70,13 +70,18 @@ async def run_check(
 def list_tools(settings: ServerSettings, out: TextIO) -> int:
     """Print every tool and whether the current configuration enables it."""
     # The tool functions are never called here, so no client (and no credentials) is needed.
-    specs = build_all(cast(IcingaClient, None))
-    enabled = {spec.name for spec in select_tools(specs, settings)}
-    print(f"{'TOOL':<18} {'TOOLSET':<11} {'MODE':<6} ENABLED", file=out)
+    specs = build_all(cast(IcingaClient, None), settings)
+    selected = select_tools(specs, settings)
+    try:
+        check_write_config(selected, settings)
+    except ConfigError as exc:
+        print(f"warning: {exc}", file=sys.stderr)
+    enabled = {spec.name for spec in selected}
+    print(f"{'TOOL':<23} {'TOOLSET':<17} {'MODE':<6} ENABLED", file=out)
     for spec in sorted(specs, key=lambda s: (TOOLSETS.index(s.toolset), s.name)):
         mode = "write" if spec.write else "read"
         print(
-            f"{spec.name:<18} {spec.toolset:<11} {mode:<6} "
+            f"{spec.name:<23} {spec.toolset:<17} {mode:<6} "
             f"{'yes' if spec.name in enabled else 'no'}",
             file=out,
         )

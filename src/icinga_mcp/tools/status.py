@@ -4,13 +4,14 @@ from typing import Any
 
 from icinga_mcp import formatting as fmt
 from icinga_mcp.clients.icinga_api import IcingaClient
+from icinga_mcp.config import ServerSettings
 from icinga_mcp.models import IcingaStatus, StateCounts
 from icinga_mcp.tools.base import ToolSpec, icinga_tool
 
 TOOLSET = "status"
 
 
-def build(client: IcingaClient) -> list[ToolSpec]:
+def build(client: IcingaClient, settings: ServerSettings) -> list[ToolSpec]:
     @icinga_tool
     async def icinga_status() -> IcingaStatus:
         """Overview of the Icinga 2 instance: version, global feature flags and the number

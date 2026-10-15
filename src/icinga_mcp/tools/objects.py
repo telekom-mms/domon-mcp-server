@@ -6,6 +6,7 @@ from pydantic import Field
 
 from icinga_mcp import formatting as fmt
 from icinga_mcp.clients.icinga_api import IcingaClient
+from icinga_mcp.config import ServerSettings
 from icinga_mcp.models import HostBrief, HostDetails, HostList, ServiceDetails
 from icinga_mcp.tools.base import Filter, ToolSpec, icinga_tool
 from icinga_mcp.tools.convert import (
@@ -22,7 +23,7 @@ MAX_HOST_SERVICES = 200
 HostName = Annotated[str, Field(min_length=1, description="Exact Icinga host name")]
 
 
-def build(client: IcingaClient) -> list[ToolSpec]:
+def build(client: IcingaClient, settings: ServerSettings) -> list[ToolSpec]:
     @icinga_tool
     async def get_host(name: HostName) -> HostDetails:
         """Details of one host: state, last check output and performance data, check

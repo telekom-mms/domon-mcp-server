@@ -9,9 +9,10 @@ Implements the [Model Context Protocol](https://modelcontextprotocol.io/) revisi
 ## Scope (v1)
 
 - Read active problems, host/service details, comments and downtimes (Icinga 2 REST API)
+- Acknowledge problems, add comments, schedule/remove downtimes (opt-in, every change is
+  confirmed by the user)
 - Tools are grouped into toolsets that can be enabled/disabled individually; read-only by default
-- Planned: acknowledge problems, add comments, schedule/remove downtimes (opt-in, with safety
-  guards); alert history (Icinga Web 2 `monitoring` module); Icinga Director (read-only)
+- Planned: alert history (Icinga Web 2 `monitoring` module); Icinga Director (read-only)
 
 Runs on Linux, macOS and Windows (Python 3.11+).
 
@@ -47,14 +48,16 @@ repository. A workspace file `.vscode/mcp.json` works too, but must not be commi
       "env": {
         "ICINGA_URL": "https://icinga-master.example.com:5665",
         "ICINGA_USER": "icinga-mcp",
-        "ICINGA_PASSWORD": "change-me"
+        "ICINGA_PASSWORD": "change-me",
+        "ICINGA_MCP_READ_ONLY": "false",
+        "ICINGA_MCP_AUTHOR": "jdoe"
       }
     }
   }
 }
 ```
 
-The password is stored in plain text in this file. Use a dedicated, minimally privileged
+Omit the last two lines to keep icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
 `ApiUser` (see [permissions](#icinga-2-api-permissions)) and protect the file accordingly.
 
 Until icinga-mcp is published on PyPI, run it from a local checkout instead of `uvx`:
@@ -127,15 +130,20 @@ object ApiUser "icinga-mcp" {
 
 ## Tools
 
-| Tool | Toolset | Description |
-|---|---|---|
-| `icinga_status` | `status` | Version, feature flags, host/service counts per state, unhandled problems |
-| `list_problems` | `problems` | Current alerts (DOWN hosts, WARNING/CRITICAL/UNKNOWN services); filters for host/service patterns, host group, states, handled, hard states |
-| `get_host` | `objects` | Host details incl. check output, perfdata, custom vars (redacted) and its services |
-| `get_service` | `objects` | Service details incl. check output, perfdata, command and custom vars (redacted) |
-| `list_hosts` | `objects` | Search hosts by name/address pattern or host group |
-| `list_comments` | `comments` | Comments and acknowledgement texts, newest first |
-| `list_downtimes` | `downtimes` | Scheduled downtimes and whether they are in effect |
+| Tool | Toolset | Mode | Description |
+|---|---|---|---|
+| `icinga_status` | `status` | read | Version, feature flags, host/service counts per state, unhandled problems |
+| `list_problems` | `problems` | read | Current alerts (DOWN hosts, WARNING/CRITICAL/UNKNOWN services); filters for host/service patterns, host group, states, handled, hard states |
+| `get_host` | `objects` | read | Host details incl. check output, perfdata, custom vars (redacted) and its services |
+| `get_service` | `objects` | read | Service details incl. check output, perfdata, command and custom vars (redacted) |
+| `list_hosts` | `objects` | read | Search hosts by name/address pattern or host group |
+| `acknowledge_problem` | `acknowledgements` | write | Acknowledge problems (sticky, notify, expiry); OK or already acknowledged objects are skipped |
+| `remove_acknowledgement` | `acknowledgements` | write | Remove acknowledgements |
+| `list_comments` | `comments` | read | Comments and acknowledgement texts, newest first |
+| `add_comment` | `comments` | write | Add a comment (note) to hosts/services |
+| `list_downtimes` | `downtimes` | read | Scheduled downtimes and whether they are in effect |
+| `schedule_downtime` | `downtimes` | write | Fixed or flexible downtime (`start` = `now` or ISO 8601, `end` or `duration` like `2h`), optionally for all services of a host |
+| `remove_downtime` | `downtimes` | write | Remove downtimes by name (from `list_downtimes`) |
 
 Custom variables whose names look sensitive (`*pass*`, `*secret*`, `*token*`, `*basicauth*`, ...)
 are replaced by `***REDACTED***` in all tool results.
@@ -145,11 +153,34 @@ are replaced by `***REDACTED***` in all tool results.
 | Variable | Default | Description |
 |---|---|---|
 | `ICINGA_MCP_TOOLSETS` | all | Comma-separated toolsets to enable, e.g. `status,problems,objects` |
-| `ICINGA_MCP_DISABLED_TOOLS` | none | Comma-separated tool names to hide, e.g. `list_hosts` |
-| `ICINGA_MCP_READ_ONLY` | `true` | Hide all tools that change Icinga (write tools follow in a later release) |
+| `ICINGA_MCP_DISABLED_TOOLS` | none | Comma-separated tool names to hide, e.g. `remove_downtime` |
+| `ICINGA_MCP_READ_ONLY` | `true` | Hide all write tools. Set to `false` to enable them |
 
 Disabled tools are not registered at all, so the model never sees them.
 `icinga-mcp list-tools` shows the effective selection.
+
+### Write tools and safety
+
+Write tools are only available with `ICINGA_MCP_READ_ONLY=false` and need these settings:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ICINGA_MCP_AUTHOR` | (required) | Name recorded as author in Icinga, e.g. your user name |
+| `ICINGA_MCP_MAX_TARGETS` | `20` | Maximum number of objects per call |
+| `ICINGA_MCP_MAX_DOWNTIME` | `14d` | Maximum length of a downtime |
+| `ICINGA_MCP_REQUIRE_ELICITATION` | `false` | Refuse changes from clients that cannot ask the user (see below) |
+
+Safety measures:
+
+- Targets are exact object names (`host` or `host!service`), never patterns or free filters.
+  All targets are looked up first; unknown names abort the call before anything is changed.
+- **Every change is confirmed by the user.** If the MCP client supports
+  [elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation)
+  (e.g. VS Code), the user gets a dialog listing the objects and options. Clients without
+  elicitation get a preview on the first call; only a second call with `confirm=true` applies
+  the change. In that mode the model is instructed to ask the user first, but technically it
+  could set `confirm=true` on its own; set `ICINGA_MCP_REQUIRE_ELICITATION=true` to rule that out.
+- Results report per object whether Icinga applied the change.
 
 ## Command line
 

@@ -8,7 +8,7 @@ from mcp.server import MCPServer
 from icinga_mcp import __version__
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.config import IcingaSettings, ServerSettings
-from icinga_mcp.tools import build_all, select_tools
+from icinga_mcp.tools import build_all, check_write_config, select_tools
 
 INSTRUCTIONS = """\
 Access to an Icinga 2 monitoring system for analysing alerts.
@@ -23,6 +23,10 @@ Semantics:
 - "soft" states are not yet confirmed (the check is being retried), "hard" states are.
 - Times are ISO 8601 with UTC offset; "duration" is the time since the last state change.
 - Sensitive custom variables (passwords, tokens, ...) are redacted.
+
+Changing tools (acknowledge, comment, downtime) target exact object names ('host' or
+'host!service') and always need the user's confirmation. Never set confirm=true on your own:
+only after the user explicitly approved the preview shown to them.
 """
 
 
@@ -34,7 +38,8 @@ def create_server(
 ) -> MCPServer:
     """Build the MCP server with the tools enabled by ``server_settings``."""
     icinga = client or IcingaClient(icinga_settings)
-    specs = select_tools(build_all(icinga), server_settings)
+    specs = select_tools(build_all(icinga, server_settings), server_settings)
+    check_write_config(specs, server_settings)
 
     @asynccontextmanager
     async def lifespan(_: MCPServer) -> AsyncIterator[None]:

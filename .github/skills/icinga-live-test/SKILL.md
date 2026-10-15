@@ -29,7 +29,11 @@ description: 'Run icinga-mcp against a real Icinga 2 instance in a reproducible,
 5. **End-to-end smoke test over stdio** (spawns the server like an MCP client does and calls
    every enabled read tool): `uv run python .github/skills/icinga-live-test/scripts/smoke_test.py`.
    Optional arguments: `--host <name>` to focus `get_host` / `get_service` on one host.
-6. Report results compactly (counts, tool errors, protocol version) and update
+6. **Write tools without changing anything**: start the server with
+   `ICINGA_MCP_READ_ONLY=false ICINGA_MCP_AUTHOR=<name>` and call write tools *without*
+   `confirm` from a client without elicitation callback. Icinga is only queried; the result is
+   a preview (`applied: false`). Compare comment/downtime/ack counts before and after.
+7. Report results compactly (counts, tool errors, protocol version) and update
    `instances.local.md` if you learned something new about the instance (e.g. permissions,
    attribute quirks).
 

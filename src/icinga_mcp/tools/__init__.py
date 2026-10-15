@@ -3,16 +3,16 @@ from collections.abc import Iterable
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.config import ServerSettings
 from icinga_mcp.errors import ConfigError
-from icinga_mcp.tools import comments, downtimes, objects, problems, status
+from icinga_mcp.tools import acknowledgements, comments, downtimes, objects, problems, status
 from icinga_mcp.tools.base import ToolSpec
 
-_MODULES = (status, problems, objects, comments, downtimes)
+_MODULES = (status, problems, objects, acknowledgements, comments, downtimes)
 
 TOOLSETS: tuple[str, ...] = tuple(module.TOOLSET for module in _MODULES)
 
 
-def build_all(client: IcingaClient) -> list[ToolSpec]:
-    return [spec for module in _MODULES for spec in module.build(client)]
+def build_all(client: IcingaClient, settings: ServerSettings) -> list[ToolSpec]:
+    return [spec for module in _MODULES for spec in module.build(client, settings)]
 
 
 def select_tools(specs: Iterable[ToolSpec], settings: ServerSettings) -> list[ToolSpec]:
@@ -44,4 +44,12 @@ def select_tools(specs: Iterable[ToolSpec], settings: ServerSettings) -> list[To
     return sorted(selected, key=lambda spec: spec.name)
 
 
-__all__ = ["TOOLSETS", "ToolSpec", "build_all", "select_tools"]
+def check_write_config(selected: Iterable[ToolSpec], settings: ServerSettings) -> None:
+    if any(spec.write for spec in selected) and not settings.author:
+        raise ConfigError(
+            "write tools are enabled (ICINGA_MCP_READ_ONLY=false) but ICINGA_MCP_AUTHOR is not "
+            "set; it is recorded as author of acknowledgements, comments and downtimes"
+        )
+
+
+__all__ = ["TOOLSETS", "ToolSpec", "build_all", "check_write_config", "select_tools"]

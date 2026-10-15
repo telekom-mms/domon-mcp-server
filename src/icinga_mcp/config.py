@@ -7,6 +7,7 @@ from pydantic import Field, SecretStr, ValidationError, field_validator, model_v
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from icinga_mcp.errors import ConfigError
+from icinga_mcp.timeparse import parse_duration
 
 
 class IcingaSettings(BaseSettings):
@@ -73,6 +74,35 @@ class ServerSettings(BaseSettings):
         default_factory=list, description="Comma-separated tool names to hide."
     )
     read_only: bool = Field(default=True, description="Hide all tools that change Icinga.")
+    author: str | None = Field(
+        default=None,
+        description="Author recorded in Icinga for acknowledgements, comments and downtimes. "
+        "Required when write tools are enabled.",
+    )
+    require_elicitation: bool = Field(
+        default=False,
+        description="Refuse write tools for clients that cannot ask the user for confirmation "
+        "(instead of the two-step confirm=true fallback).",
+    )
+    max_targets: int = Field(
+        default=20, ge=1, le=500, description="Maximum number of objects per write tool call."
+    )
+    max_downtime: str = Field(default="14d", description="Maximum length of a downtime.")
+
+    @field_validator("author")
+    @classmethod
+    def _blank_author_is_none(cls, value: str | None) -> str | None:
+        return value.strip() or None if value else None
+
+    @field_validator("max_downtime")
+    @classmethod
+    def _valid_duration(cls, value: str) -> str:
+        parse_duration(value)
+        return value
+
+    @property
+    def max_downtime_seconds(self) -> int:
+        return parse_duration(self.max_downtime)
 
     @field_validator("toolsets", "disabled_tools", mode="before")
     @classmethod

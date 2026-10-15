@@ -121,9 +121,19 @@ class IcingaClient:
         return results
 
     async def action(self, action: str, body: Mapping[str, Any]) -> list[JSON]:
-        """Run ``/v1/actions/<action>``. The body must contain ``type`` and a target filter."""
+        """Run ``/v1/actions/<action>`` and return one result per affected object.
+
+        The body must contain ``type`` and a non-empty ``filter``. If Icinga reports per-object
+        results with an error status (partial failure), they are returned instead of raised.
+        """
         _check_identifier(action)
-        return _results(await self._request("POST", f"/v1/actions/{action}", json=dict(body)))
+        if not body.get("filter"):
+            raise ValueError("refusing to run an Icinga action without a filter")
+        return _results(
+            await self._request(
+                "POST", f"/v1/actions/{action}", json=dict(body), keep_object_results=True
+            )
+        )
 
     async def _request(
         self,
@@ -132,6 +142,7 @@ class IcingaClient:
         *,
         json: JSON | None = None,
         headers: Mapping[str, str] | None = None,
+        keep_object_results: bool = False,
     ) -> JSON:
         try:
             response = await self._http.request(
@@ -149,6 +160,13 @@ class IcingaClient:
         payload = _json_or_none(response)
         if response.is_success:
             return payload if payload is not None else {}
+        if (
+            keep_object_results
+            and payload
+            and _results(payload)
+            and response.status_code not in (401, 403)
+        ):
+            return payload
         raise _api_error(response.status_code, payload, response.text)
 
 

@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field
 
 from icinga_mcp.clients.icinga_api import IcingaClient
+from icinga_mcp.config import ServerSettings
 from icinga_mcp.models import ProblemList, ProblemSummary
 from icinga_mcp.tools.base import Filter, ToolSpec, icinga_tool
 from icinga_mcp.tools.convert import (
@@ -30,7 +31,7 @@ HostGroup = Annotated[str | None, Field(description="Only objects of hosts in th
 Limit = Annotated[int, Field(ge=1, le=500, description="Maximum number of entries to return")]
 
 
-def build(client: IcingaClient) -> list[ToolSpec]:
+def build(client: IcingaClient, settings: ServerSettings) -> list[ToolSpec]:
     @icinga_tool
     async def list_problems(
         host: HostPattern = None,
