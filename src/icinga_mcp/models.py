@@ -229,3 +229,37 @@ class HistoryResult(BaseModel):
     returned: int
     truncated: bool
     events: list[HistoryEvent] = Field(description="Newest first")
+
+
+class DirectorSummary(BaseModel):
+    name: str
+    director_type: str | None = Field(None, description="object, template, apply, external_object")
+    imports: list[str]
+    display_name: str | None = None
+    address: str | None = None
+    check_command: str | None = None
+    command: str | None = Field(None, description="Command line (commands only)")
+    assign_filter: str | None = Field(None, description="Apply rules and host groups")
+
+
+class DirectorList(BaseModel):
+    object_type: str
+    total: int = Field(description="Objects matching the search")
+    returned: int
+    truncated: bool
+    objects: list[DirectorSummary]
+
+
+class DirectorObject(BaseModel):
+    object_type: str
+    name: str
+    properties: dict[str, Any] = Field(
+        description="Properties set on the object itself (secrets redacted)"
+    )
+    resolved: dict[str, Any] | None = Field(
+        None, description="All properties incl. those inherited from templates (hosts/templates)"
+    )
+    referenced_by: list[str] = Field(
+        description="'type:name' of objects importing this template or using this command"
+    )
+    referenced_by_truncated: bool

@@ -13,7 +13,8 @@ Implements the [Model Context Protocol](https://modelcontextprotocol.io/) revisi
   confirmed by the user)
 - Tools are grouped into toolsets that can be enabled/disabled individually; read-only by default
 - Alert history via Icinga Web 2 (`monitoring` module), optional
-- Planned: Icinga Director (read-only), IcingaDB history backend
+- Icinga Director configuration (read-only): hosts, templates, apply rules, commands, optional
+- Planned: IcingaDB history backend
 
 Runs on Linux, macOS and Windows (Python 3.11+).
 
@@ -61,7 +62,7 @@ repository. A workspace file `.vscode/mcp.json` works too, but must not be commi
 }
 ```
 
-The `ICINGAWEB_*` lines enable the alert history (optional). Omit the last two lines to keep
+The `ICINGAWEB_*` lines enable the alert history and the Director tools (optional). Omit the last two lines to keep
 icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
 `ApiUser` (see [permissions](#icinga-2-api-permissions)) and protect the file accordingly.
 
@@ -89,15 +90,17 @@ All settings are read from environment variables (the `env` block of the MCP con
 | `ICINGA_VERIFY_TLS` | no | Force verification on (`true`, e.g. for publicly trusted certificates without `ICINGA_CA_CERT`) or off (`false`). Default: on if `ICINGA_CA_CERT` is set, otherwise off |
 | `ICINGA_TIMEOUT` | no | Request timeout in seconds (default `30`) |
 
-### Alert history (optional)
+### Icinga Web: history and Director (optional)
 
-The Icinga 2 API has no history. `get_history` reads it from Icinga Web 2 (IDO database via
-the `monitoring` module) and is only available when these variables are set:
+The Icinga 2 API has no history and does not know the Director data model. `get_history`
+reads the alert history from Icinga Web 2 (IDO database via the `monitoring` module), the
+`director_*` tools read the configuration from the Icinga Director REST API. Both are only
+available when these variables are set:
 
 | Variable | Required | Description |
 |---|---|---|
 | `ICINGAWEB_URL` | yes | Icinga Web 2 root URL, e.g. `https://icinga.example.com` (or `.../icingaweb2`) |
-| `ICINGAWEB_USER` | yes | Icinga Web user (needs access to the monitoring module) |
+| `ICINGAWEB_USER` | yes | Icinga Web user (needs access to the monitoring module and, for the Director tools, Director API access) |
 | `ICINGAWEB_PASSWORD` | yes | Password (HTTP basic auth) |
 | `ICINGAWEB_CA_CERT` | no | CA bundle if the web server certificate is not publicly trusted |
 | `ICINGAWEB_VERIFY_TLS` | no | Default `true`; set `false` only for debugging |
@@ -162,12 +165,15 @@ object ApiUser "icinga-mcp" {
 | `list_comments` | `comments` | read | Comments and acknowledgement texts, newest first |
 | `add_comment` | `comments` | write | Add a comment (note) to hosts/services |
 | `list_downtimes` | `downtimes` | read | Scheduled downtimes and whether they are in effect |
+| `director_list` | `director` | read | Search the Director configuration: hosts, host/service templates, service apply rules, commands, host groups, notification templates, time periods. Needs Icinga Web |
+| `director_get` | `director` | read | One Director object with inherited properties (hosts/templates) and the objects that use a template or command. Needs Icinga Web |
 | `get_history` | `history` | read | Alert history in a time window (`since` = `24h`, `7d` or ISO 8601): hard/soft state changes, notifications, acknowledgements, comments, downtimes, flapping; summary with the most active objects. Needs Icinga Web |
 | `schedule_downtime` | `downtimes` | write | Fixed or flexible downtime (`start` = `now` or ISO 8601, `end` or `duration` like `2h`), optionally for all services of a host |
 | `remove_downtime` | `downtimes` | write | Remove downtimes by name (from `list_downtimes`) |
 
-Custom variables whose names look sensitive (`*pass*`, `*secret*`, `*token*`, `*basicauth*`, ...)
-are replaced by `***REDACTED***` in all tool results.
+Values below keys whose names look sensitive (`*pass*`, `*secret*`, `*token*`, `*basicauth*`,
+...) are replaced by `***REDACTED***` in all tool results. Pure macro references such as
+`$snmp_password$` (e.g. in command arguments) stay visible because they contain no secret.
 
 ### Enabling and disabling tools
 

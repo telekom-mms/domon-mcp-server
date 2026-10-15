@@ -18,6 +18,8 @@ import anyio
 from mcp import Client, StdioServerParameters
 
 READ_TOOLS = (
+    "director_get",
+    "director_list",
     "get_history",
     "icinga_status",
     "list_problems",
@@ -89,6 +91,16 @@ async def run(host: str | None) -> int:
         history = await call("get_history", {"since": "24h", "limit": 5})
         if history:
             print(f"- get_history: {history['summary']['by_event']}")
+
+        if target:
+            director_host = await call("director_get", {"object_type": "host", "name": target})
+            if director_host:
+                print(
+                    f"- director_get {target}: imports {director_host['properties'].get('imports')}"
+                )
+        rules = await call("director_list", {"object_type": "service_apply_rule", "limit": 1})
+        if rules:
+            print(f"- director_list service_apply_rule: {rules['total']} total")
 
         comments = await call("list_comments", {"limit": 5})
         if comments:

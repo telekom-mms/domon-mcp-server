@@ -11,6 +11,7 @@ import anyio
 import httpx2
 
 from icinga_mcp import __version__
+from icinga_mcp.clients.director import DirectorClient
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.clients.icingaweb import IcingaWebClient
 from icinga_mcp.config import (
@@ -25,7 +26,13 @@ from icinga_mcp.errors import ConfigError, IcingaMCPError
 from icinga_mcp.history import HistoryBackend, MonitoringHistory
 from icinga_mcp.permissions import READ_PERMISSIONS, WRITE_PERMISSIONS, missing, unused
 from icinga_mcp.server import create_server
-from icinga_mcp.tools import TOOLSETS, build_all, check_write_config, select_tools
+from icinga_mcp.tools import (
+    REQUIREMENTS,
+    TOOLSETS,
+    build_all,
+    check_write_config,
+    select_tools,
+)
 
 EXIT_OK = 0
 EXIT_CONFIG = 1
@@ -81,7 +88,7 @@ async def _check_web(
     transport: httpx2.AsyncBaseTransport | None,
 ) -> bool:
     if settings is None:
-        print("Icinga Web   : not configured (history tools disabled)", file=out)
+        print("Icinga Web   : not configured (history and director tools disabled)", file=out)
         return True
     print(f"Icinga Web   : {settings.url} as {settings.user}", file=out)
     now = time.time()
@@ -104,11 +111,11 @@ def list_tools(settings: ServerSettings, web_configured: bool, out: TextIO) -> i
     """Print every tool and whether the current configuration enables it."""
     # The tool functions are never called here, so no clients (and no credentials) are needed.
     client = cast(IcingaClient, None)
-    placeholder = cast(HistoryBackend, object())
-    specs = build_all(client, settings, placeholder)
-    selected = select_tools(
-        build_all(client, settings, placeholder if web_configured else None), settings
-    )
+    history = cast(HistoryBackend, object())
+    director = cast(DirectorClient, object())
+    specs = build_all(client, settings, history_backend=history, director_client=director)
+    available = specs if web_configured else build_all(client, settings)
+    selected = select_tools(available, settings)
     try:
         check_write_config(selected, settings)
     except ConfigError as exc:
@@ -118,7 +125,7 @@ def list_tools(settings: ServerSettings, web_configured: bool, out: TextIO) -> i
     for spec in sorted(specs, key=lambda s: (TOOLSETS.index(s.toolset), s.name)):
         mode = "write" if spec.write else "read"
         state = "yes" if spec.name in enabled else "no"
-        if spec.toolset == "history" and not web_configured:
+        if spec.toolset in REQUIREMENTS and not web_configured:
             state = "no (needs ICINGAWEB_URL)"
         print(f"{spec.name:<23} {spec.toolset:<17} {mode:<6} {state}", file=out)
     return EXIT_OK

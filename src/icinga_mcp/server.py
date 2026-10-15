@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from mcp.server import MCPServer
 
 from icinga_mcp import __version__
+from icinga_mcp.clients.director import DirectorClient
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.clients.icingaweb import IcingaWebClient
 from icinga_mcp.config import IcingaSettings, IcingaWebSettings, ServerSettings
@@ -18,7 +19,8 @@ Access to an Icinga 2 monitoring system for analysing alerts.
 Suggested workflow: icinga_status for an overview, list_problems for current alerts
 (only unhandled ones by default), get_host / get_service for details and plugin output,
 list_comments and list_downtimes for context, get_history (if available) for what happened
-over time.
+over time, director_list / director_get (if available) for how checks are configured
+(templates, apply rules, commands).
 
 Semantics:
 - Host states: UP, DOWN. Service states: OK, WARNING, CRITICAL, UNKNOWN.
@@ -43,12 +45,19 @@ def create_server(
 ) -> MCPServer:
     """Build the MCP server with the tools enabled by ``server_settings``.
 
-    History tools are only available when Icinga Web is configured (``web_settings``).
+    History and Director tools are only available when Icinga Web is configured.
     """
     icinga = client or IcingaClient(icinga_settings)
     web = web_client or (IcingaWebClient(web_settings) if web_settings else None)
-    history = MonitoringHistory(web) if web else None
-    specs = select_tools(build_all(icinga, server_settings, history), server_settings)
+    specs = select_tools(
+        build_all(
+            icinga,
+            server_settings,
+            history_backend=MonitoringHistory(web) if web else None,
+            director_client=DirectorClient(web) if web else None,
+        ),
+        server_settings,
+    )
     check_write_config(specs, server_settings)
 
     @asynccontextmanager

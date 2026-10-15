@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 
+from icinga_mcp.clients.director import DirectorClient
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.config import ServerSettings
 from icinga_mcp.errors import ConfigError
@@ -7,6 +8,7 @@ from icinga_mcp.history import HistoryBackend
 from icinga_mcp.tools import (
     acknowledgements,
     comments,
+    director,
     downtimes,
     history,
     objects,
@@ -17,18 +19,29 @@ from icinga_mcp.tools.base import ToolSpec
 
 _MODULES = (status, problems, objects, acknowledgements, comments, downtimes)
 
-TOOLSETS: tuple[str, ...] = (*(module.TOOLSET for module in _MODULES), history.TOOLSET)
+TOOLSETS: tuple[str, ...] = (
+    *(module.TOOLSET for module in _MODULES),
+    history.TOOLSET,
+    director.TOOLSET,
+)
 
+_WEB = "ICINGAWEB_URL, ICINGAWEB_USER and ICINGAWEB_PASSWORD"
 # Toolsets that need an optional data source; value = how to enable it.
-_REQUIREMENTS = {history.TOOLSET: "ICINGAWEB_URL, ICINGAWEB_USER and ICINGAWEB_PASSWORD"}
+REQUIREMENTS = {history.TOOLSET: _WEB, director.TOOLSET: _WEB}
 
 
 def build_all(
-    client: IcingaClient, settings: ServerSettings, history_backend: HistoryBackend | None
+    client: IcingaClient,
+    settings: ServerSettings,
+    *,
+    history_backend: HistoryBackend | None = None,
+    director_client: DirectorClient | None = None,
 ) -> list[ToolSpec]:
     specs = [spec for module in _MODULES for spec in module.build(client, settings)]
     if history_backend is not None:
         specs += history.build(history_backend, settings)
+    if director_client is not None:
+        specs += director.build(director_client, settings)
     return specs
 
 
@@ -46,7 +59,7 @@ def select_tools(specs: Iterable[ToolSpec], settings: ServerSettings) -> list[To
             f"available: {', '.join(TOOLSETS)}"
         )
     for name in sorted(requested - built_toolsets):
-        raise ConfigError(f"toolset '{name}' is enabled but needs {_REQUIREMENTS[name]}")
+        raise ConfigError(f"toolset '{name}' is enabled but needs {REQUIREMENTS[name]}")
     unknown_tools = set(settings.disabled_tools) - known_tools
     if unknown_tools:
         raise ConfigError(
@@ -72,4 +85,11 @@ def check_write_config(selected: Iterable[ToolSpec], settings: ServerSettings) -
         )
 
 
-__all__ = ["TOOLSETS", "ToolSpec", "build_all", "check_write_config", "select_tools"]
+__all__ = [
+    "REQUIREMENTS",
+    "TOOLSETS",
+    "ToolSpec",
+    "build_all",
+    "check_write_config",
+    "select_tools",
+]

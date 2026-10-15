@@ -296,11 +296,13 @@ async def test_list_problems_limit() -> None:
 async def test_get_host_redacts_vars_and_lists_services() -> None:
     result = await _call(FakeIcinga(), "get_host", {"name": "web01"})
     data = result.structured_content
-    assert data["vars"] == {"os": "Linux", "mail_basic_auth": REDACTED}
+    assert data["vars"] == {
+        "os": "Linux",
+        "mail_basic_auth": {"user": REDACTED, "password": REDACTED},
+    }
     assert [s["name"] for s in data["services"]] == ["http", "disk", "ping"]
     assert data["service_summary"] == {"CRITICAL": 1, "WARNING": 1, "OK": 1}
     assert data["check_attempt"] == "1/3"
-    assert "p" not in json.dumps(data["vars"]).replace(REDACTED, "")
 
 
 async def test_get_host_not_found_is_tool_error() -> None:

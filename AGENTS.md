@@ -13,7 +13,7 @@ User-facing documentation: [README.md](README.md). Code, comments and docs are i
 | Read tools: `icinga_status`, `list_problems`, `get_host`, `get_service`, `list_hosts`, `list_comments`, `list_downtimes` | done, verified live |
 | Write tools: `acknowledge_problem`, `remove_acknowledgement`, `add_comment`, `schedule_downtime`, `remove_downtime` | done; verified live (downtime, comment, ack skip) |
 | History: `get_history` via Icinga Web 2 `monitoring` module (`/monitoring/list/eventhistory?format=json`) | done, verified live |
-| Icinga Director read tools (`/director/...`, `Accept: application/json`) | planned, needs web login |
+| Director: `director_list`, `director_get` via Icinga Web (`/director/...`, same `ICINGAWEB_*` login) | done, verified live (leak scan over all objects) |
 | Streamable HTTP transport, central deployment | later |
 
 Out of scope: creating, changing or deleting monitoring objects (that is done via Director/Ansible).
@@ -34,7 +34,12 @@ Out of scope: creating, changing or deleting monitoring objects (that is done vi
   a second call with `confirm=true`. `ICINGA_MCP_AUTHOR` is required for write tools.
 - **The Icinga 2 API has no history.** History comes from Icinga Web 2 (IDO, `monitoring`
   module) via the `HistoryBackend` protocol in `history.py`; an IcingaDB backend is planned.
-  Icinga Web is optional (`ICINGAWEB_*`); without it the `history` toolset is not built.
+  Icinga Web is optional (`ICINGAWEB_*`); without it the `history` and `director` toolsets
+  are not built (`REQUIREMENTS` in `tools/__init__.py`).
+- **Director API quirks**: lists answer `{"objects": [...]}`; single objects only for hosts and
+  templates (`/director/host?name=..&resolved`, `/director/service?name=..`); there are no
+  single services (all via apply rules), `config/deployments`, `activitylog` and
+  `host/services` do not work on the test instance.
 - **Icinga Web `eventhistory` quirks**: always send a `timestamp` window (without it PHP runs
   out of memory); `limit` is ignored (truncate client-side); notification type is
   `notification_state` (older: `notify`). URL filter values go through `eq()` (percent-encoded,
@@ -51,6 +56,7 @@ src/icinga_mcp/
   clients/icinga_api.py  # async Icinga 2 REST client, error mapping, SNI override
   clients/icingaweb.py   # Icinga Web 2 JSON list views, URL filter helpers eq/compare/any_of
   history.py          # HistoryBackend protocol, MonitoringHistory (eventhistory -> HistoryEvent)
+  clients/director.py # Director REST lists (60 s cache) and ?resolved objects
   tools/__init__.py   # registry: _MODULES, select_tools() (toolsets, disabled, read-only)
   tools/base.py       # ToolSpec, icinga_tool (errors -> ToolError), Filter (filter_vars)
   tools/actions.py    # write tool helpers: resolve_targets, approval (elicit/confirm), run_action
@@ -83,7 +89,8 @@ src/icinga_mcp/
 - Request only attributes that exist on the object type (`HOST_*` / `SERVICE_*` lists in
   `convert.py`): Icinga answers unknown attributes with HTTP 200 and a per-object `code: 400`.
   The client raises on those.
-- Pass custom vars and anything config-like through `redact()` before returning it.
+- Pass custom vars and anything config-like through `redact()` before returning it. It masks
+  everything below sensitive keys except booleans and pure macro references (`$x$`).
 - Expected failures (not found, bad input) raise `ToolError` with a hint for the model; Icinga
   client errors are converted automatically by `@icinga_tool`.
 - **stdout is the MCP stdio channel**: log only to stderr, never `print()` in server code.

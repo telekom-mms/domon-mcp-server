@@ -23,7 +23,7 @@ def test_redacts_nested_sensitive_keys() -> None:
 
     result = redact(data)
 
-    assert result["vars"]["mail_basic_auth"] == REDACTED
+    assert result["vars"]["mail_basic_auth"] == {"user": REDACTED, "password": REDACTED}
     assert result["vars"]["prometheus_basicauth"] == REDACTED
     assert result["vars"]["api_token"] == REDACTED
     assert result["vars"]["db_pass"] == REDACTED
@@ -42,3 +42,35 @@ def test_permission_wildcards() -> None:
     assert is_granted("anything", ["*"])
     assert missing(["objects/query/Host", "status/query"], granted) == ["status/query"]
     assert unused(granted, ["objects/query/Host", "actions/add-comment"]) == ["events/*"]
+
+
+def test_redaction_keeps_macros_and_flags() -> None:
+    command = {
+        "arguments": {
+            "--password": {
+                "value": "$db_password$",
+                "description": "DB password",
+                "required": True,
+            },
+            "--authpassphrase": "$snmp_v3_auth$ $snmp_v3_priv$",
+            "--pass": "literal-secret",
+            "--host": "$address$",
+        },
+        "vars": {"snmp_v3_use_privpass": False, "api_token": 12345, "token_file": ""},
+    }
+
+    result = redact(command)
+
+    assert result["arguments"]["--password"] == {
+        "value": "$db_password$",
+        "description": REDACTED,
+        "required": True,
+    }
+    assert result["arguments"]["--authpassphrase"] == "$snmp_v3_auth$ $snmp_v3_priv$"
+    assert result["arguments"]["--pass"] == REDACTED
+    assert result["arguments"]["--host"] == "$address$"
+    assert result["vars"] == {
+        "snmp_v3_use_privpass": False,
+        "api_token": REDACTED,
+        "token_file": "",
+    }
