@@ -1,0 +1,69 @@
+[project]
+name = "icinga-mcp"
+version = "0.1.0"
+description = "MCP server for analysing Icinga 2 monitoring: problems, history, acknowledgements, comments and downtimes."
+authors = [
+    { name = "Sebastian Wolschke", email = "sebastian.wolschke@telekom.de" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["mcp", "icinga", "icinga2", "monitoring", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "anyio>=4.9",
+    "httpx2>=2.10",
+    "mcp>=2.3,<3",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.16",
+]
+
+[project.scripts]
+icinga-mcp = "icinga_mcp.cli:main"
+
+[project.urls]
+Source = "https://github.com/hektor1966/icinga-mcp"
+Issues = "https://github.com/hektor1966/icinga-mcp/issues"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+python_version = "3.11"
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m 'not integration'"
+markers = [
+    "integration: tests against a real Icinga 2 instance (requires ICINGA_* environment)",
+]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.15.1",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
