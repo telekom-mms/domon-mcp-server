@@ -12,7 +12,8 @@ Implements the [Model Context Protocol](https://modelcontextprotocol.io/) revisi
 - Acknowledge problems, add comments, schedule/remove downtimes (opt-in, every change is
   confirmed by the user)
 - Tools are grouped into toolsets that can be enabled/disabled individually; read-only by default
-- Planned: alert history (Icinga Web 2 `monitoring` module); Icinga Director (read-only)
+- Alert history via Icinga Web 2 (`monitoring` module), optional
+- Planned: Icinga Director (read-only), IcingaDB history backend
 
 Runs on Linux, macOS and Windows (Python 3.11+).
 
@@ -49,6 +50,9 @@ repository. A workspace file `.vscode/mcp.json` works too, but must not be commi
         "ICINGA_URL": "https://icinga-master.example.com:5665",
         "ICINGA_USER": "icinga-mcp",
         "ICINGA_PASSWORD": "change-me",
+        "ICINGAWEB_URL": "https://icinga.example.com",
+        "ICINGAWEB_USER": "jdoe",
+        "ICINGAWEB_PASSWORD": "change-me",
         "ICINGA_MCP_READ_ONLY": "false",
         "ICINGA_MCP_AUTHOR": "jdoe"
       }
@@ -57,7 +61,8 @@ repository. A workspace file `.vscode/mcp.json` works too, but must not be commi
 }
 ```
 
-Omit the last two lines to keep icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
+The `ICINGAWEB_*` lines enable the alert history (optional). Omit the last two lines to keep
+icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
 `ApiUser` (see [permissions](#icinga-2-api-permissions)) and protect the file accordingly.
 
 Until icinga-mcp is published on PyPI, run it from a local checkout instead of `uvx`:
@@ -83,6 +88,21 @@ All settings are read from environment variables (the `env` block of the MCP con
 | `ICINGA_TLS_SERVER_NAME` | no | Expected certificate host name if it differs from the URL host (used for SNI and verification), e.g. when the API sits behind a Kubernetes ingress |
 | `ICINGA_VERIFY_TLS` | no | Force verification on (`true`, e.g. for publicly trusted certificates without `ICINGA_CA_CERT`) or off (`false`). Default: on if `ICINGA_CA_CERT` is set, otherwise off |
 | `ICINGA_TIMEOUT` | no | Request timeout in seconds (default `30`) |
+
+### Alert history (optional)
+
+The Icinga 2 API has no history. `get_history` reads it from Icinga Web 2 (IDO database via
+the `monitoring` module) and is only available when these variables are set:
+
+| Variable | Required | Description |
+|---|---|---|
+| `ICINGAWEB_URL` | yes | Icinga Web 2 root URL, e.g. `https://icinga.example.com` (or `.../icingaweb2`) |
+| `ICINGAWEB_USER` | yes | Icinga Web user (needs access to the monitoring module) |
+| `ICINGAWEB_PASSWORD` | yes | Password (HTTP basic auth) |
+| `ICINGAWEB_CA_CERT` | no | CA bundle if the web server certificate is not publicly trusted |
+| `ICINGAWEB_VERIFY_TLS` | no | Default `true`; set `false` only for debugging |
+| `ICINGAWEB_TIMEOUT` | no | Request timeout in seconds (default `60`) |
+| `ICINGA_MCP_MAX_HISTORY` | no | Longest time window per query (default `31d`) |
 
 ### TLS certificate verification (optional)
 
@@ -142,6 +162,7 @@ object ApiUser "icinga-mcp" {
 | `list_comments` | `comments` | read | Comments and acknowledgement texts, newest first |
 | `add_comment` | `comments` | write | Add a comment (note) to hosts/services |
 | `list_downtimes` | `downtimes` | read | Scheduled downtimes and whether they are in effect |
+| `get_history` | `history` | read | Alert history in a time window (`since` = `24h`, `7d` or ISO 8601): hard/soft state changes, notifications, acknowledgements, comments, downtimes, flapping; summary with the most active objects. Needs Icinga Web |
 | `schedule_downtime` | `downtimes` | write | Fixed or flexible downtime (`start` = `now` or ISO 8601, `end` or `duration` like `2h`), optionally for all services of a host |
 | `remove_downtime` | `downtimes` | write | Remove downtimes by name (from `list_downtimes`) |
 
@@ -187,7 +208,7 @@ Safety measures:
 | Command | Description |
 |---|---|
 | `icinga-mcp` / `icinga-mcp serve` | Run the MCP server on stdio (started by the MCP client) |
-| `icinga-mcp check` | Test connection, TLS, credentials and API permissions |
+| `icinga-mcp check` | Test connection, TLS, credentials, API permissions and (if configured) Icinga Web history access |
 | `icinga-mcp list-tools` | Show all tools and which ones are enabled (no credentials needed) |
 
 `check` reads the same environment variables as the server:

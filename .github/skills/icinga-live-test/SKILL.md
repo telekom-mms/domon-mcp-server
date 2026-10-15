@@ -20,11 +20,11 @@ description: 'Run icinga-mcp against a real Icinga 2 instance in a reproducible,
    does not exist, copy [instances.example.md](./instances.example.md) to `instances.local.md`
    and ask the user for URL, user, optional TLS settings and where the password comes from.
 2. **Environment**: set `ICINGA_URL`, `ICINGA_USER`, `ICINGA_PASSWORD` (plus `ICINGA_CA_CERT` /
-   `ICINGA_TLS_SERVER_NAME` if verification is wanted) for the commands only, without echoing
-   the password. Bash: `ICINGA_PASSWORD="$(<command>)" uv run ...`;
+   `ICINGA_TLS_SERVER_NAME` if verification is wanted) and, for history, `ICINGAWEB_URL`,
+   `ICINGAWEB_USER`, `ICINGAWEB_PASSWORD` for the commands only, without echoing the passwords. Bash: `ICINGA_PASSWORD="$(<command>)" uv run ...`;
    PowerShell: `$env:ICINGA_PASSWORD = <command>; uv run ...`.
 3. **Connectivity and permissions**: `uv run icinga-mcp check` (exit 0 = read tools usable;
-   the output lists missing and unneeded permissions).
+   the output lists missing and unneeded permissions and the Icinga Web history status).
 4. **Integration tests**: `uv run pytest -m integration -q`.
 5. **End-to-end smoke test over stdio** (spawns the server like an MCP client does and calls
    every enabled read tool): `uv run python .github/skills/icinga-live-test/scripts/smoke_test.py`.
@@ -46,3 +46,5 @@ description: 'Run icinga-mcp against a real Icinga 2 instance in a reproducible,
 | Connection closed without message while `ICINGA_TLS_SERVER_NAME` is set | SNI-routing proxy does not know that name |
 | `Icinga API error 400: Invalid field specified` | Attribute not valid for that object type (see `convert.py`) |
 | 403 `Missing permission` | ApiUser lacks the permission; `icinga-mcp check` lists what is missing |
+| History: "ran out of memory" / PHP fatal error | Query without time window, or a huge one; narrow `since`/host |
+| History: "HTML instead of JSON" | Wrong `ICINGAWEB_URL` (must be the Icinga Web root) or login page |

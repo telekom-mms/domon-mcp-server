@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated, TypeVar
 
@@ -88,13 +89,14 @@ class ServerSettings(BaseSettings):
         default=20, ge=1, le=500, description="Maximum number of objects per write tool call."
     )
     max_downtime: str = Field(default="14d", description="Maximum length of a downtime.")
+    max_history: str = Field(default="31d", description="Maximum time window of one history query.")
 
     @field_validator("author")
     @classmethod
     def _blank_author_is_none(cls, value: str | None) -> str | None:
         return value.strip() or None if value else None
 
-    @field_validator("max_downtime")
+    @field_validator("max_downtime", "max_history")
     @classmethod
     def _valid_duration(cls, value: str) -> str:
         parse_duration(value)
@@ -103,6 +105,10 @@ class ServerSettings(BaseSettings):
     @property
     def max_downtime_seconds(self) -> int:
         return parse_duration(self.max_downtime)
+
+    @property
+    def max_history_seconds(self) -> int:
+        return parse_duration(self.max_history)
 
     @field_validator("toolsets", "disabled_tools", mode="before")
     @classmethod
@@ -115,6 +121,42 @@ class ServerSettings(BaseSettings):
     @classmethod
     def _empty_means_all(cls, value: list[str] | None) -> list[str] | None:
         return value or None
+
+
+class IcingaWebSettings(BaseSettings):
+    """Icinga Web 2 access (alert history), read from ``ICINGAWEB_*`` variables."""
+
+    model_config = SettingsConfigDict(env_prefix="ICINGAWEB_", extra="ignore")
+
+    url: str = Field(description="Base URL of Icinga Web 2, e.g. https://icinga.example.com")
+    user: str = Field(min_length=1)
+    password: SecretStr
+    ca_cert: Path | None = None
+    verify_tls: bool = Field(
+        default=True, description="Icinga Web usually has a publicly trusted certificate."
+    )
+    timeout: float = Field(default=60.0, gt=0)
+
+    @field_validator("url")
+    @classmethod
+    def _normalize_url(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        if not value.startswith(("https://", "http://")):
+            raise ValueError("must start with https:// (or http://)")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def _password_not_empty(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value():
+            raise ValueError("must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def _check_paths(self) -> IcingaWebSettings:
+        if self.ca_cert is not None and not self.ca_cert.is_file():
+            raise ValueError(f"ICINGAWEB_CA_CERT file not found: {self.ca_cert}")
+        return self
 
 
 SettingsT = TypeVar("SettingsT", bound=BaseSettings)
@@ -139,3 +181,10 @@ def load_icinga_settings() -> IcingaSettings:
 
 def load_server_settings() -> ServerSettings:
     return _load(ServerSettings)
+
+
+def load_icingaweb_settings() -> IcingaWebSettings | None:
+    """Icinga Web access is optional: ``None`` if ``ICINGAWEB_URL`` is not set."""
+    if not os.environ.get("ICINGAWEB_URL", "").strip():
+        return None
+    return _load(IcingaWebSettings)

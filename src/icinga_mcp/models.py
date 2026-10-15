@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 class Problem(BaseModel):
@@ -184,3 +184,48 @@ class ActionResult(BaseModel):
     targets: list[str] = Field(description="Objects the action was (or would be) applied to")
     skipped: list[SkippedTarget]
     results: list[ActionOutcome]
+
+
+class HistoryEvent(BaseModel):
+    time: str = Field(description="ISO 8601 time of the event")
+    category: str = Field(description="state, soft_state, notification, acknowledgement, ...")
+    event: str = Field(description="What happened, e.g. 'state change', 'acknowledged'")
+    host: str
+    service: str | None
+    state: str | None = Field(None, description="New state for state changes and notifications")
+    attempt: str | None = Field(None, description="Check attempt for soft state changes")
+    actor: str | None = Field(None, description="Author or notified contact")
+    output: str = Field(description="Plugin output or comment text (truncated)")
+    _timestamp: float = PrivateAttr(default=0.0)
+
+    @property
+    def timestamp(self) -> float:
+        return self._timestamp
+
+
+class ObjectActivity(BaseModel):
+    object: str = Field(description="'host' or 'host!service'")
+    state_changes: int
+    problem_changes: int = Field(description="Hard state changes into a non-OK state")
+    last_state: str | None
+    last_change: str | None
+
+
+class HistorySummary(BaseModel):
+    total: int = Field(description="All events in the window matching the filters")
+    by_event: dict[str, int]
+    state_changes_by_state: dict[str, int] = Field(
+        description="Hard state changes per new state (OK/UP = recoveries)"
+    )
+    most_active: list[ObjectActivity] = Field(
+        description="Objects with the most hard state changes (flapping candidates)"
+    )
+
+
+class HistoryResult(BaseModel):
+    start: str
+    end: str
+    summary: HistorySummary
+    returned: int
+    truncated: bool
+    events: list[HistoryEvent] = Field(description="Newest first")

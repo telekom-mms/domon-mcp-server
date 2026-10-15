@@ -18,6 +18,7 @@ import anyio
 from mcp import Client, StdioServerParameters
 
 READ_TOOLS = (
+    "get_history",
     "icinga_status",
     "list_problems",
     "list_hosts",
@@ -84,6 +85,10 @@ async def run(host: str | None) -> int:
                     svc = await call("get_service", {"host": target, "service": service})
                     if svc:
                         print(f"- get_service {service}: {svc['state']} {svc['check_attempt']}")
+
+        history = await call("get_history", {"since": "24h", "limit": 5})
+        if history:
+            print(f"- get_history: {history['summary']['by_event']}")
 
         comments = await call("list_comments", {"limit": 5})
         if comments:

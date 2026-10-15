@@ -12,7 +12,7 @@ User-facing documentation: [README.md](README.md). Code, comments and docs are i
 | Config, Icinga 2 API client, `check` / `list-tools` CLI | done |
 | Read tools: `icinga_status`, `list_problems`, `get_host`, `get_service`, `list_hosts`, `list_comments`, `list_downtimes` | done, verified live |
 | Write tools: `acknowledge_problem`, `remove_acknowledgement`, `add_comment`, `schedule_downtime`, `remove_downtime` | done; verified live (downtime, comment, ack skip) |
-| History via Icinga Web 2 `monitoring` module (`/monitoring/list/eventhistory?format=json`) | planned, needs web login |
+| History: `get_history` via Icinga Web 2 `monitoring` module (`/monitoring/list/eventhistory?format=json`) | done, verified live |
 | Icinga Director read tools (`/director/...`, `Accept: application/json`) | planned, needs web login |
 | Streamable HTTP transport, central deployment | later |
 
@@ -33,7 +33,13 @@ Out of scope: creating, changing or deleting monitoring objects (that is done vi
   `Resolve`/`Elicit` (works on 2026-07-28 via MRTR and on 2025-11-25), otherwise a preview plus
   a second call with `confirm=true`. `ICINGA_MCP_AUTHOR` is required for write tools.
 - **The Icinga 2 API has no history.** History comes from Icinga Web 2 (IDO, `monitoring`
-  module); keep the history backend replaceable because an IcingaDB migration is planned.
+  module) via the `HistoryBackend` protocol in `history.py`; an IcingaDB backend is planned.
+  Icinga Web is optional (`ICINGAWEB_*`); without it the `history` toolset is not built.
+- **Icinga Web `eventhistory` quirks**: always send a `timestamp` window (without it PHP runs
+  out of memory); `limit` is ignored (truncate client-side); notification type is
+  `notification_state` (older: `notify`). URL filter values go through `eq()` (percent-encoded,
+  `*` stays a wildcard) so they cannot change the filter; httpx2 keeps raw `|` and `()` used
+  for OR groups.
 
 ## Architecture
 
@@ -43,6 +49,8 @@ src/icinga_mcp/
   config.py           # IcingaSettings (ICINGA_*), ServerSettings (ICINGA_MCP_*)
   server.py           # create_server(): MCPServer + enabled tools, closes client in lifespan
   clients/icinga_api.py  # async Icinga 2 REST client, error mapping, SNI override
+  clients/icingaweb.py   # Icinga Web 2 JSON list views, URL filter helpers eq/compare/any_of
+  history.py          # HistoryBackend protocol, MonitoringHistory (eventhistory -> HistoryEvent)
   tools/__init__.py   # registry: _MODULES, select_tools() (toolsets, disabled, read-only)
   tools/base.py       # ToolSpec, icinga_tool (errors -> ToolError), Filter (filter_vars)
   tools/actions.py    # write tool helpers: resolve_targets, approval (elicit/confirm), run_action
@@ -89,7 +97,7 @@ src/icinga_mcp/
 uv sync
 uv run ruff check . && uv run ruff format --check . && uv run mypy   # mypy is strict
 uv run pytest                    # unit tests, no network
-uv run pytest -m integration     # read-only tests against a real Icinga (ICINGA_* env)
+uv run pytest -m integration     # read-only tests against a real Icinga (ICINGA_*, ICINGAWEB_* env)
 uv run icinga-mcp list-tools
 ```
 

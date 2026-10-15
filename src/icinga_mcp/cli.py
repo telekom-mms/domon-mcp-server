@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from collections.abc import Sequence
 from typing import TextIO, cast
 
@@ -11,13 +12,17 @@ import httpx2
 
 from icinga_mcp import __version__
 from icinga_mcp.clients.icinga_api import IcingaClient
+from icinga_mcp.clients.icingaweb import IcingaWebClient
 from icinga_mcp.config import (
     IcingaSettings,
+    IcingaWebSettings,
     ServerSettings,
     load_icinga_settings,
+    load_icingaweb_settings,
     load_server_settings,
 )
 from icinga_mcp.errors import ConfigError, IcingaMCPError
+from icinga_mcp.history import HistoryBackend, MonitoringHistory
 from icinga_mcp.permissions import READ_PERMISSIONS, WRITE_PERMISSIONS, missing, unused
 from icinga_mcp.server import create_server
 from icinga_mcp.tools import TOOLSETS, build_all, check_write_config, select_tools
@@ -32,6 +37,8 @@ async def run_check(
     out: TextIO,
     *,
     transport: httpx2.AsyncBaseTransport | None = None,
+    web_settings: IcingaWebSettings | None = None,
+    web_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> int:
     """Verify connectivity, TLS, credentials and permissions against the Icinga 2 API."""
     async with IcingaClient(settings, transport=transport) as client:
@@ -64,14 +71,44 @@ async def run_check(
     )
     if extra:
         print(f"Not needed   : {', '.join(extra)}", file=out)
-    return EXIT_OK if not missing_read else EXIT_CONNECTION
+    web_ok = await _check_web(web_settings, out, web_transport)
+    return EXIT_OK if not missing_read and web_ok else EXIT_CONNECTION
 
 
-def list_tools(settings: ServerSettings, out: TextIO) -> int:
+async def _check_web(
+    settings: IcingaWebSettings | None,
+    out: TextIO,
+    transport: httpx2.AsyncBaseTransport | None,
+) -> bool:
+    if settings is None:
+        print("Icinga Web   : not configured (history tools disabled)", file=out)
+        return True
+    print(f"Icinga Web   : {settings.url} as {settings.user}", file=out)
+    now = time.time()
+    try:
+        async with IcingaWebClient(settings, transport=transport) as web:
+            events = await MonitoringHistory(web).events(
+                start=now - 3600, end=now, host=None, service=None, categories=["state"]
+            )
+    except IcingaMCPError as exc:
+        print(f"History      : ERROR {exc}", file=out)
+        return False
+    print(
+        f"History      : OK (monitoring module, {len(events)} state changes in the last hour)",
+        file=out,
+    )
+    return True
+
+
+def list_tools(settings: ServerSettings, web_configured: bool, out: TextIO) -> int:
     """Print every tool and whether the current configuration enables it."""
-    # The tool functions are never called here, so no client (and no credentials) is needed.
-    specs = build_all(cast(IcingaClient, None), settings)
-    selected = select_tools(specs, settings)
+    # The tool functions are never called here, so no clients (and no credentials) are needed.
+    client = cast(IcingaClient, None)
+    placeholder = cast(HistoryBackend, object())
+    specs = build_all(client, settings, placeholder)
+    selected = select_tools(
+        build_all(client, settings, placeholder if web_configured else None), settings
+    )
     try:
         check_write_config(selected, settings)
     except ConfigError as exc:
@@ -80,16 +117,19 @@ def list_tools(settings: ServerSettings, out: TextIO) -> int:
     print(f"{'TOOL':<23} {'TOOLSET':<17} {'MODE':<6} ENABLED", file=out)
     for spec in sorted(specs, key=lambda s: (TOOLSETS.index(s.toolset), s.name)):
         mode = "write" if spec.write else "read"
-        print(
-            f"{spec.name:<23} {spec.toolset:<17} {mode:<6} "
-            f"{'yes' if spec.name in enabled else 'no'}",
-            file=out,
-        )
+        state = "yes" if spec.name in enabled else "no"
+        if spec.toolset == "history" and not web_configured:
+            state = "no (needs ICINGAWEB_URL)"
+        print(f"{spec.name:<23} {spec.toolset:<17} {mode:<6} {state}", file=out)
     return EXIT_OK
 
 
-def serve(icinga_settings: IcingaSettings, server_settings: ServerSettings) -> int:
-    server = create_server(icinga_settings, server_settings)
+def serve(
+    icinga_settings: IcingaSettings,
+    server_settings: ServerSettings,
+    web_settings: IcingaWebSettings | None,
+) -> int:
+    server = create_server(icinga_settings, server_settings, web_settings=web_settings)
     server.run("stdio")
     return EXIT_OK
 
@@ -112,14 +152,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         server_settings = load_server_settings()
+        web_settings = load_icingaweb_settings()
         if command == "list-tools":
-            return list_tools(server_settings, sys.stdout)
+            return list_tools(server_settings, web_settings is not None, sys.stdout)
         icinga_settings = load_icinga_settings()
         if command == "serve":
-            return serve(icinga_settings, server_settings)
+            return serve(icinga_settings, server_settings, web_settings)
 
         async def _check() -> int:
-            return await run_check(icinga_settings, sys.stdout)
+            return await run_check(icinga_settings, sys.stdout, web_settings=web_settings)
 
         return anyio.run(_check)
     except ConfigError as exc:
