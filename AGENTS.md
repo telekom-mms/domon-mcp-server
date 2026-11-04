@@ -12,7 +12,7 @@ User-facing documentation: [README.md](README.md). Code, comments and docs are i
 | Config, Icinga 2 API client, `check` / `list-tools` CLI | done |
 | Read tools: `icinga_status`, `list_problems`, `get_host`, `get_service`, `list_hosts`, `list_comments`, `list_downtimes` | done, verified live |
 | Write tools: `acknowledge_problem`, `remove_acknowledgement`, `add_comment`, `schedule_downtime`, `remove_downtime` | done; verified live (downtime, comment, ack skip) |
-| History: `get_history` via Icinga Web 2 `monitoring` module (`/monitoring/list/eventhistory?format=json`) | done, verified live |
+| History: `get_history` via IcingaDB Web module (`/icingadb/history?format=json`); legacy Icinga Web `monitoring` backend selectable | implemented, live verification pending |
 | Director: `director_list`, `director_get` via Icinga Web (`/director/...`, same `ICINGAWEB_*` login) | done, verified live (leak scan over all objects) |
 | Streamable HTTP transport, central deployment | later |
 
@@ -32,8 +32,9 @@ Out of scope: creating, changing or deleting monitoring objects (that is done vi
   respect `ICINGA_MCP_MAX_TARGETS`, and need the user's confirmation: elicitation via
   `Resolve`/`Elicit` (works on 2026-07-28 via MRTR and on 2025-11-25), otherwise a preview plus
   a second call with `confirm=true`. `ICINGA_MCP_AUTHOR` is required for write tools.
-- **The Icinga 2 API has no history.** History comes from Icinga Web 2 (IDO, `monitoring`
-  module) via the `HistoryBackend` protocol in `history.py`; an IcingaDB backend is planned.
+- **The Icinga 2 API has no history.** History comes from Icinga Web 2 via the
+  `HistoryBackend` protocol in `history.py`; IcingaDB Web is the default backend, and the
+  legacy IDO `monitoring` backend can be selected with `ICINGAWEB_HISTORY_BACKEND=monitoring`.
   Icinga Web is optional (`ICINGAWEB_*`); without it the `history` and `director` toolsets
   are not built (`REQUIREMENTS` in `tools/__init__.py`).
 - **Director API quirks**: lists answer `{"objects": [...]}`; single objects only for hosts and

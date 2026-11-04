@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Annotated, TypeVar
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -131,6 +131,7 @@ class IcingaWebSettings(BaseSettings):
     url: str = Field(description="Base URL of Icinga Web 2, e.g. https://icinga.example.com")
     user: str = Field(min_length=1)
     password: SecretStr
+    history_backend: Literal["icingadb", "monitoring"] = "icingadb"
     ca_cert: Path | None = None
     verify_tls: bool = Field(
         default=True, description="Icinga Web usually has a publicly trusted certificate."

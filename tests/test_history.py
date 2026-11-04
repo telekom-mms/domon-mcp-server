@@ -20,14 +20,17 @@ from icinga_mcp.errors import (
     IcingaAuthError,
     IcingaNotFoundError,
 )
-from icinga_mcp.history import MonitoringHistory
+from icinga_mcp.history import IcingaDbHistory, MonitoringHistory
 from icinga_mcp.server import create_server
 from tests.conftest import Recorder, json_response
 
 pytestmark = pytest.mark.anyio
 
 NOW = time.time()
-WEB = IcingaWebSettings(url="https://web.example/", user="jdoe", password="pw")
+WEB = IcingaWebSettings(
+    url="https://web.example/", user="jdoe", password="pw", history_backend="monitoring"
+)
+ICINGADB_WEB = IcingaWebSettings(url="https://web.example/", user="jdoe", password="pw")
 
 ROWS: list[dict[str, Any]] = [
     {
@@ -95,6 +98,52 @@ ROWS: list[dict[str, Any]] = [
     },
 ]
 
+ICINGADB_ROWS: list[dict[str, Any]] = [
+    {
+        "event_type": "state_change",
+        "event_time": "2026-11-04T12:00:00.000+00:00",
+        "object_type": "service",
+        "host": {"name": "web01"},
+        "service": {"name": "http"},
+        "state": {
+            "state_type": "hard",
+            "hard_state": 2,
+            "soft_state": 2,
+            "output": "connection refused",
+        },
+    },
+    {
+        "event_type": "state_change",
+        "event_time": "2026-11-04T11:59:00.000+00:00",
+        "object_type": "service",
+        "host": {"name": "web01"},
+        "service": {"name": "http"},
+        "state": {
+            "state_type": "soft",
+            "hard_state": 0,
+            "soft_state": 2,
+            "check_attempt": 2,
+            "output": "still failing",
+        },
+    },
+    {
+        "event_type": "ack_set",
+        "event_time": "2026-11-04T11:58:00.000+00:00",
+        "object_type": "service",
+        "host": {"name": "web01"},
+        "service": {"name": "http"},
+        "acknowledgement": {"author": "alice", "comment": "looking into it"},
+    },
+    {
+        "event_type": "comment_remove",
+        "event_time": "2026-11-04T11:57:00.000+00:00",
+        "object_type": "service",
+        "host": {"name": "web01"},
+        "service": {"name": "http"},
+        "comment": {"author": "alice", "removed_by": "bob", "comment": "resolved"},
+    },
+]
+
 
 class FakeWeb:
     def __init__(self, rows: list[dict[str, Any]] | None = None) -> None:
@@ -106,8 +155,8 @@ class FakeWeb:
         return json_response(200, self.rows)  # type: ignore[arg-type]
 
 
-def web_client(handler: Any) -> IcingaWebClient:
-    return IcingaWebClient(WEB, transport=httpx2.MockTransport(handler))
+def web_client(handler: Any, settings: IcingaWebSettings = WEB) -> IcingaWebClient:
+    return IcingaWebClient(settings, transport=httpx2.MockTransport(handler))
 
 
 def test_filter_values_are_encoded() -> None:
@@ -154,6 +203,34 @@ async def test_events_query_and_mapping() -> None:
     assert by_event["state changeOK"].output == "[OK] fine", "plugin output keeps its prefix"
 
 
+async def test_icingadb_history_query_and_mapping() -> None:
+    fake = FakeWeb(ICINGADB_ROWS)
+    async with web_client(fake, ICINGADB_WEB) as web:
+        events = await IcingaDbHistory(web).events(
+            start=1793790000,
+            end=1793794000,
+            host="web*",
+            service="http",
+            categories=["state", "soft_state", "acknowledgement", "comment"],
+        )
+
+    query = unquote(fake.queries[0])
+    assert query.startswith("/icingadb/history?event_time>=2026-11-04 11:00:00")
+    assert "&event_time<=2026-11-04 12:06:40" in query
+    assert "(event_type=state_change|event_type=ack_set|event_type=ack_clear|" in query
+    assert "&host.name=web*&service.name=http&format=json" in query
+    assert [(event.category, event.event) for event in events] == [
+        ("state", "state change"),
+        ("soft_state", "soft state change"),
+        ("acknowledgement", "acknowledged"),
+        ("comment", "comment removed"),
+    ]
+    assert events[0].state == "CRITICAL" and events[0].output == "connection refused"
+    assert events[1].attempt == "2" and events[1].state == "CRITICAL"
+    assert events[2].actor == "alice" and events[2].output == "looking into it"
+    assert events[3].actor == "bob" and events[3].output == "resolved"
+
+
 @pytest.mark.parametrize(
     ("response", "error", "match"),
     [
@@ -190,13 +267,14 @@ async def test_rejects_unsafe_path() -> None:
             await web.list("/monitoring/list?x=1", [])
 
 
-def _server(fake: FakeWeb | None, **settings: Any) -> Any:
+def _server(fake: FakeWeb | None, *, web_settings: IcingaWebSettings = WEB, **settings: Any) -> Any:
     api = IcingaSettings(url="https://icinga.example:5665", user="u", password="p")
     return create_server(
         api,
         ServerSettings(**settings),
+        web_settings=web_settings if fake else None,
         client=IcingaClient(api, transport=Recorder({}).transport),
-        web_client=web_client(fake) if fake else None,
+        web_client=web_client(fake, web_settings) if fake else None,
     )
 
 
@@ -207,6 +285,17 @@ async def test_history_tool_only_with_icinga_web() -> None:
         _server(None, toolsets=["history"])
     async with Client(_server(FakeWeb(), toolsets=["history"])) as client:
         assert [t.name for t in (await client.list_tools()).tools] == ["get_history"]
+
+
+async def test_icingadb_backend_is_default() -> None:
+    fake = FakeWeb(ICINGADB_ROWS)
+    async with Client(_server(fake, web_settings=ICINGADB_WEB, toolsets=["history"])) as client:
+        result = await client.call_tool("get_history", {"events": ["state", "soft_state"]})
+    assert result.is_error is False
+    assert [event["category"] for event in result.structured_content["events"]] == [
+        "state",
+        "soft_state",
+    ]
 
 
 async def test_get_history_summary_and_limit() -> None:
@@ -277,7 +366,7 @@ async def test_check_reports_icinga_web(settings: IcingaSettings) -> None:
         web_transport=httpx2.MockTransport(FakeWeb()),
     )
     assert code == cli.EXIT_OK
-    assert "History      : OK (monitoring module, 3 state changes" in out.getvalue()
+    assert "History      : OK (monitoring backend, 3 state changes" in out.getvalue()
 
     out = io.StringIO()
     code = await cli.run_check(

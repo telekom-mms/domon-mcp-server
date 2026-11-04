@@ -23,7 +23,7 @@ from icinga_mcp.config import (
     load_server_settings,
 )
 from icinga_mcp.errors import ConfigError, IcingaMCPError
-from icinga_mcp.history import HistoryBackend, MonitoringHistory
+from icinga_mcp.history import HistoryBackend, build_history_backend
 from icinga_mcp.permissions import READ_PERMISSIONS, WRITE_PERMISSIONS, missing, unused
 from icinga_mcp.server import create_server
 from icinga_mcp.tools import (
@@ -94,14 +94,15 @@ async def _check_web(
     now = time.time()
     try:
         async with IcingaWebClient(settings, transport=transport) as web:
-            events = await MonitoringHistory(web).events(
+            events = await build_history_backend(web, settings.history_backend).events(
                 start=now - 3600, end=now, host=None, service=None, categories=["state"]
             )
     except IcingaMCPError as exc:
         print(f"History      : ERROR {exc}", file=out)
         return False
     print(
-        f"History      : OK (monitoring module, {len(events)} state changes in the last hour)",
+        f"History      : OK ({settings.history_backend} backend, "
+        f"{len(events)} state changes in the last hour)",
         file=out,
     )
     return True

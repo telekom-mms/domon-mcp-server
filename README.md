@@ -12,9 +12,8 @@ Implements the [Model Context Protocol](https://modelcontextprotocol.io/) revisi
 - Acknowledge problems, add comments, schedule/remove downtimes (opt-in, every change is
   confirmed by the user)
 - Tools are grouped into toolsets that can be enabled/disabled individually; read-only by default
-- Alert history via Icinga Web 2 (`monitoring` module), optional
+- Alert history via the IcingaDB Web module, optional (legacy `monitoring` module supported)
 - Icinga Director configuration (read-only): hosts, templates, apply rules, commands, optional
-- Planned: IcingaDB history backend
 
 Runs on Linux, macOS and Windows (Python 3.11+).
 
@@ -93,15 +92,16 @@ All settings are read from environment variables (the `env` block of the MCP con
 ### Icinga Web: history and Director (optional)
 
 The Icinga 2 API has no history and does not know the Director data model. `get_history`
-reads the alert history from Icinga Web 2 (IDO database via the `monitoring` module), the
+reads alert history from Icinga Web 2's IcingaDB module by default, the
 `director_*` tools read the configuration from the Icinga Director REST API. Both are only
 available when these variables are set:
 
 | Variable | Required | Description |
 |---|---|---|
 | `ICINGAWEB_URL` | yes | Icinga Web 2 root URL, e.g. `https://icinga.example.com` (or `.../icingaweb2`) |
-| `ICINGAWEB_USER` | yes | Icinga Web user (needs access to the monitoring module and, for the Director tools, Director API access) |
+| `ICINGAWEB_USER` | yes | Icinga Web user (needs IcingaDB module access for history by default; `monitoring` module for legacy history; Director API access for Director tools) |
 | `ICINGAWEB_PASSWORD` | yes | Password (HTTP basic auth) |
+| `ICINGAWEB_HISTORY_BACKEND` | no | History source: `icingadb` (default) or `monitoring` for legacy IDO installations |
 | `ICINGAWEB_CA_CERT` | no | CA bundle if the web server certificate is not publicly trusted |
 | `ICINGAWEB_VERIFY_TLS` | no | Default `true`; set `false` only for debugging |
 | `ICINGAWEB_TIMEOUT` | no | Request timeout in seconds (default `60`) |

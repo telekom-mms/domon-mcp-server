@@ -10,7 +10,7 @@ from icinga_mcp.clients.director import DirectorClient
 from icinga_mcp.clients.icinga_api import IcingaClient
 from icinga_mcp.clients.icingaweb import IcingaWebClient
 from icinga_mcp.config import IcingaSettings, IcingaWebSettings, ServerSettings
-from icinga_mcp.history import MonitoringHistory
+from icinga_mcp.history import build_history_backend
 from icinga_mcp.tools import build_all, check_write_config, select_tools
 
 INSTRUCTIONS = """\
@@ -53,7 +53,11 @@ def create_server(
         build_all(
             icinga,
             server_settings,
-            history_backend=MonitoringHistory(web) if web else None,
+            history_backend=build_history_backend(
+                web, web_settings.history_backend if web_settings else "icingadb"
+            )
+            if web
+            else None,
             director_client=DirectorClient(web) if web else None,
         ),
         server_settings,

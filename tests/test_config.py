@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from icinga_mcp.config import IcingaSettings, load_icinga_settings
+from icinga_mcp.config import IcingaSettings, IcingaWebSettings, load_icinga_settings
 from icinga_mcp.errors import ConfigError
 
 
@@ -74,6 +74,11 @@ def test_rejects_url_without_scheme() -> None:
 def test_rejects_missing_ca_file(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="ICINGA_CA_CERT"):
         IcingaSettings(url="https://m", user="u", password="p", ca_cert=tmp_path / "nope.pem")
+
+
+def test_icingaweb_history_backend_defaults_to_icingadb() -> None:
+    settings = IcingaWebSettings(url="https://web.example", user="u", password="p")
+    assert settings.history_backend == "icingadb"
 
 
 def test_tls_verification_defaults(tmp_path: Path) -> None:
