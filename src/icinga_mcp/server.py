@@ -78,7 +78,7 @@ def create_server(
         title="Icinga 2",
         version=__version__,
         instructions=INSTRUCTIONS,
-        website_url="https://github.com/hektor1966/icinga-mcp",
+        website_url="https://github.com/telekom-mms/domon-mcp-server",
         lifespan=lifespan,
     )
     for spec in specs:

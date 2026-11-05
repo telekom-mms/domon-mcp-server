@@ -30,8 +30,8 @@ dependencies = [
 icinga-mcp = "icinga_mcp.cli:main"
 
 [project.urls]
-Source = "https://github.com/hektor1966/icinga-mcp"
-Issues = "https://github.com/hektor1966/icinga-mcp/issues"
+Source = "https://github.com/telekom-mms/domon-mcp-server"
+Issues = "https://github.com/telekom-mms/domon-mcp-server/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]
