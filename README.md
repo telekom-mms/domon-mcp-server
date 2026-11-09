@@ -33,6 +33,39 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+### Install with pip
+
+Python 3.11 or newer is required. Install the package in a virtual environment so its dependencies stay separate
+from other Python projects.
+
+```bash
+# macOS / Linux
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install domon-mcp-server
+.venv/bin/icinga-mcp list-tools
+```
+
+```powershell
+# Windows (PowerShell)
+py -3.11 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install domon-mcp-server
+.venv\Scripts\icinga-mcp.exe list-tools
+```
+
+`list-tools` verifies the installation and does not require Icinga credentials. Configure the MCP client to use the
+installed command from the virtual environment; the client does not inherit an activated shell environment:
+
+```json
+{
+  "command": "/absolute/path/to/.venv/bin/icinga-mcp",
+  "args": []
+}
+```
+
+On Windows, use the executable path instead, e.g. `C:/path/to/.venv/Scripts/icinga-mcp.exe`.
+
 ## Quick start (VS Code)
 
 Add the server to your MCP configuration. Recommended: the user configuration
