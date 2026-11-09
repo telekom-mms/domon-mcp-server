@@ -54,17 +54,23 @@ py -3.11 -m venv .venv
 .venv\Scripts\icinga-mcp.exe list-tools
 ```
 
-`list-tools` verifies the installation and does not require Icinga credentials. Configure the MCP client to use the
-installed command from the virtual environment; the client does not inherit an activated shell environment:
+`list-tools` verifies the installation and does not require Icinga credentials. In the complete VS Code configuration
+below, keep the `type` and `env` fields and replace `command` and `args` in `servers.icing` with the virtual environment
+command. The MCP client does not inherit an activated shell environment.
+
+macOS / Linux:
 
 ```json
-{
-  "command": "/absolute/path/to/.venv/bin/icinga-mcp",
-  "args": []
-}
+"command": "/absolute/path/to/.venv/bin/icinga-mcp",
+"args": []
 ```
 
-On Windows, use the executable path instead, e.g. `C:/path/to/.venv/Scripts/icinga-mcp.exe`.
+Windows:
+
+```json
+"command": "C:/path/to/.venv/Scripts/icinga-mcp.exe",
+"args": []
+```
 
 ## Quick start (VS Code)
 
