@@ -1,10 +1,7 @@
 [project]
 name = "domon-mcp-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for analysing Icinga 2 monitoring: problems, history, acknowledgements, comments and downtimes."
-authors = [
-    { name = "Sebastian Wolschke", email = "sebastian.wolschke@telekom.de" }
-]
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["mcp", "icinga", "icinga2", "monitoring", "model-context-protocol"]

@@ -4,7 +4,7 @@ MCP server for analysing an [Icinga 2](https://icinga.com/) monitoring setup wit
 Implements the [Model Context Protocol](https://modelcontextprotocol.io/) revision `2026-07-28`
 (via the official Python SDK, which also falls back to `2025-11-25` for older clients).
 
-> Status: early development. Not yet published on PyPI.
+> Status: early development. Available on [PyPI](https://pypi.org/project/domon-mcp-server/).
 
 ## Scope (v1)
 
@@ -65,7 +65,7 @@ The `ICINGAWEB_*` lines enable the alert history and the Director tools (optiona
 icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
 `ApiUser` (see [permissions](#icinga-2-api-permissions)) and protect the file accordingly.
 
-Until `domon-mcp-server` is published on PyPI, run it from a local checkout instead of `uvx`:
+To run from a local checkout instead of PyPI:
 
 ```json
       "command": "uv",
