@@ -45,7 +45,7 @@ repository. A workspace file `.vscode/mcp.json` works too, but must not be commi
     "icinga": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["icinga-mcp"],
+      "args": ["--from", "domon-mcp-server", "icinga-mcp"],
       "env": {
         "ICINGA_URL": "https://icinga-master.example.com:5665",
         "ICINGA_USER": "icinga-mcp",
@@ -65,7 +65,7 @@ The `ICINGAWEB_*` lines enable the alert history and the Director tools (optiona
 icinga-mcp read-only. The password is stored in plain text in this file. Use a dedicated, minimally privileged
 `ApiUser` (see [permissions](#icinga-2-api-permissions)) and protect the file accordingly.
 
-Until icinga-mcp is published on PyPI, run it from a local checkout instead of `uvx`:
+Until `domon-mcp-server` is published on PyPI, run it from a local checkout instead of `uvx`:
 
 ```json
       "command": "uv",
@@ -221,13 +221,13 @@ Safety measures:
 
 ```bash
 # Linux / macOS
-ICINGA_URL=https://icinga-master:5665 ICINGA_USER=icinga-mcp ICINGA_PASSWORD='...' uvx icinga-mcp check
+ICINGA_URL=https://icinga-master:5665 ICINGA_USER=icinga-mcp ICINGA_PASSWORD='...' uvx --from domon-mcp-server icinga-mcp check
 ```
 
 ```powershell
 # Windows (PowerShell)
 $env:ICINGA_URL = "https://icinga-master:5665"; $env:ICINGA_USER = "icinga-mcp"; $env:ICINGA_PASSWORD = "..."
-uvx icinga-mcp check
+uvx --from domon-mcp-server icinga-mcp check
 ```
 
 ## Development
